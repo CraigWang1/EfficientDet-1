@@ -278,6 +278,7 @@ def parse_args(args):
     parser.add_argument('--random-transform', help='Randomly transform image and annotations.', action='store_true')
     parser.add_argument('--compute-val-loss', help='Compute validation loss during training', dest='compute_val_loss',
                         action='store_true')
+    parser.add_argument('--learning_rate', help='Learning rate of training.', type=float, default=1e-3)
 
     # Fit generator arguments
     parser.add_argument('--multiprocessing', help='Use multiprocessing in fit_generator.', action='store_true')
@@ -338,7 +339,7 @@ def main(args=None):
         model = keras.utils.multi_gpu_model(model, gpus=list(map(int, args.gpu.split(','))))
 
     # compile model
-    model.compile(optimizer=Adam(lr=1e-3), loss={
+    model.compile(optimizer=Adam(lr=args.learning_rate), loss={
         'regression': smooth_l1_quad() if args.detect_quadrangle else smooth_l1(),
         'classification': focal()
     }, )
