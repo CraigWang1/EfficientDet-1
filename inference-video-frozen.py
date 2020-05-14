@@ -1,5 +1,3 @@
-# frozen graph inference
-
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,13 +32,14 @@ def preprocess_image(image, image_size):
     
     return new_image, scale
 
-
-# function to inference on pictures
-def inference_pic(model_path, phi=0, weighted_bifpn=False, classes=None, score_threshold=0.5, save=False):
+# function to inference on videos, uses pb frozen graph
+def inference_vid(model_path, phi=0, weighted_bifpn=False, classes=None, score_threshold=0.5, draw=True, fps=30):
   image_sizes = (512, 640, 768, 896, 1024, 1280, 1408)
+  cv2.namedWindow('image',cv2.WINDOW_NORMAL)
+  cv2.resizeWindow('image', 1000, 800)
   image_size = image_sizes[phi]
   num_classes = len(classes)
-  colors = [np.random.randint(0, 256, 3).tolist() for _ in range(num_classes)]
+  colors = [np.random.randint(0, 256, 3).tolist() for _ in range(num_classes)]  #yellow
 
   tf.reset_default_graph()
   sess = tf.Session()
@@ -56,19 +55,20 @@ def inference_pic(model_path, phi=0, weighted_bifpn=False, classes=None, score_t
   output_scores = sess.graph.get_tensor_by_name('filtered_detections/map/TensorArrayStack_1/TensorArrayGatherV3:0')
   output_labels = sess.graph.get_tensor_by_name('filtered_detections/map/TensorArrayStack_2/TensorArrayGatherV3:0')
 
-  # loop to keep inferencing on user's images
-  while True:
-    image_path = input("Path to image: ")
-    image = cv2.imread(image_path)
-    src_image = image.copy()
-    image = image[:, :, ::-1]   #goes from bgr to rgb
+  cap = cv2.VideoCapture(0)
+  while cap.isOpened():
+    start = time.time()
+    flag, image = cap.read()
+    if flag:
+        src_image = image.copy()
+    else:
+        break
+    image = image[:, :, ::-1]   #convert from bgr to rgb
     h, w = image.shape[:2]
 
     image, scale = preprocess_image(image, image_size=image_size)
     # run network
-    start = time.time()
     boxes, scores, labels = sess.run([output_boxes, output_scores, output_labels], {tensor_input:[image]})
-    print(time.time() - start)
     boxes /= scale
     boxes[0, :, 0] = np.clip(boxes[0, :, 0], 0, w - 1)
     boxes[0, :, 1] = np.clip(boxes[0, :, 1], 0, h - 1)
@@ -83,7 +83,7 @@ def inference_pic(model_path, phi=0, weighted_bifpn=False, classes=None, score_t
     scores = scores[0, indices]
     labels = labels[0, indices]
 
-    # visualize the outputs
+    # draw the box
     for box, score, label in zip(boxes, scores, labels):
         xmin = int(round(box[0]))
         ymin = int(round(box[1]))
@@ -98,14 +98,15 @@ def inference_pic(model_path, phi=0, weighted_bifpn=False, classes=None, score_t
         cv2.rectangle(src_image, (xmin, ymin), (xmax, ymax), color, 3)
         cv2.rectangle(src_image, (xmin, ymax - ret[1] - baseline), (xmin + ret[0], ymax), color, -1)
         cv2.putText(src_image, label, (xmin, ymax - baseline), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-    # if specified to write output to image file
-    if save:  
-        cv2.imwrite('./result.jpg', src_image)
-    # display image, but have to convert to rgb for matplotlib
-    plt.imshow(cv2.cvtColor(src_image, cv2.COLOR_BGR2RGB))  
-    plt.show()
+    # show camera feed
+    cv2.imshow("image", src_image)
+    cv2.waitKey(1)
 
-if __name__ == "__main__":
-    inference_pic(model_path="/home/craig/Downloads/models/gate/xuannianz_edet/d0/4-9-20/step3/effdet_d0_gate_4-9-20.pb", phi=0, classes=['gate'], score_threshold=0.5, save=False)
+if __name__ =='__main__':
+    inference_vid('/home/craig/pascal_05.pb', phi=0, classes = [
+        'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair',
+        'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train',
+        'tvmonitor',
+    ])
 
 
