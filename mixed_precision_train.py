@@ -339,7 +339,7 @@ def main(args=None):
         model = keras.utils.multi_gpu_model(model, gpus=list(map(int, args.gpu.split(','))))
 
     # compile model
-    optimizer = ADAM(lr=args.learning_rate)
+    optimizer = Adam(lr=args.learning_rate)
     optimizer = tf.train.experimental.enable_mixed_precision_graph_rewrite(optimizer)
 
     model.compile(optimizer=optimizer, loss={
